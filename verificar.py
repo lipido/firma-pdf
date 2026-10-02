@@ -189,7 +189,7 @@ def _coverage_line(status):
 def _qualification_line(status):
     qr = getattr(status, "qualification_result", None)
     if qr is None:
-        return "NO COMPROBADA (requiere TSL eIDAS)"
+        return "NO COMPROBADA (no implementado)"
     return "COMPROBADA: " + ("cualificado" if qr.status.qualified else "no cualificado")
 
 

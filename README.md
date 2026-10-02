@@ -196,7 +196,11 @@ Opciones de validación:
 | Sello de tiempo / TSA | Sí | Sí | Sí (sin revocación) |
 | Revocación de la TSA | Sí (online) | Sí (datos DSS) | No |
 | Cobertura / modificaciones | Sí | Sí | Sí |
-| Cualificación eIDAS | No (requiere TSL) | No | No |
+| Cualificación eIDAS | No (no implementado) | No | No |
+
+> Nota: la **cualificación eIDAS** (contraste con la Lista de Confianza / TSL) **no
+> está implementada**; ese punto sale siempre `NO COMPROBADA (no implementado)`.
+> La firma puede ser válida y confiable aunque la cualificación no se evalúe.
 
 > Importante: **firmar no consulta la revocación**. Un `B-B` firmado sin conexión
 > podría hacerse con un certificado revocado. Solo la validación la comprueba, y
@@ -222,7 +226,7 @@ COMPROBACIONES:
   Sello de tiempo................. COMPROBADA: OK; TSA: TSA1 ACCV 2016 ...
     Revocacion de la TSA.......... COMPROBADA (online): no consta revocacion
   Cobertura / modificaciones...... COMPROBADA: ENTIRE_REVISION + LTA_UPDATES
-  Cualificacion eIDAS............. NO COMPROBADA (requiere TSL eIDAS)
+  Cualificacion eIDAS............. NO COMPROBADA (no implementado)
 RESUMEN: firma OK; sello OK; revocacion OK (online)
 ```
 
