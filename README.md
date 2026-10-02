@@ -171,35 +171,69 @@ política, cadena de la TSA y si hay revocación embebida):
 python verificar.py presentacion_firmado.pdf
 ```
 
-Validación criptográfica (integridad, validez, confianza y token TSA; puede
-requerir red):
+Validación criptográfica con informe de **qué se comprobó y qué no**:
 
 ```bash
 python verificar.py presentacion_firmado.pdf --validate
 ```
 
-Salida de ejemplo:
+Opciones de validación:
+
+| Opción | Descripción | Por defecto |
+| --- | --- | --- |
+| `--revocation {off,soft,hard}` | política de revocación: `off` no la mira; `soft` la intenta y no falla si no puede; `hard` la exige | `soft` |
+| `--offline` | usa solo la revocación embebida en el `/DSS` (sin red) | online |
+| `--trust-pem CERT` | certificado PEM/DER extra para confiar (repetible) | — |
+| `--details` | añade el informe detallado de pyHanko | — |
+
+### Qué se comprueba
+
+| Aspecto | Por defecto | `--offline` (B-LT/LTA) | `--revocation off` |
+| --- | --- | --- | --- |
+| Integridad (hash + firma) | Sí | Sí | Sí |
+| Cadena de confianza | Sí | Sí (con certs del DSS) | Sí |
+| Revocación del firmante | Sí (online) | Sí (datos DSS) | No |
+| Sello de tiempo / TSA | Sí | Sí | Sí (sin revocación) |
+| Revocación de la TSA | Sí (online) | Sí (datos DSS) | No |
+| Cobertura / modificaciones | Sí | Sí | Sí |
+| Cualificación eIDAS | No (requiere TSL) | No | No |
+
+> Importante: **firmar no consulta la revocación**. Un `B-B` firmado sin conexión
+> podría hacerse con un certificado revocado. Solo la validación la comprueba, y
+> solo si tiene datos: online (`--revocation soft|hard`) o embebidos en el DSS
+> de un `B-LT`/`B-LTA` (`--offline`). Si no hay datos, el informe dirá
+> `NO COMPROBADA` (nunca lo dará por bueno).
+
+Salida de ejemplo (recorte):
 
 ```
-DSS (revocacion embebida): no hay
+Archivo: firmado_lta.pdf
+DSS (revocacion embebida): Certs=8 OCSPs=4 CRLs=0
+Validacion: revocation=soft offline=False fetch=True
 
-=== Firma #1 ===
-campo          : Signature1
-firmante       : NOMBRE APELLIDOS - 00000000X
-hora declarada : 2026-10-02 21:59:31+02:00  (no verificable por si sola)
-SELLO DE TIEMPO TSA (RFC3161):
-  hora TSA     : 2026-10-02 19:59:31+00:00
-  politica     : 2.16.840.1.114412.7.1
-  cert TSA     : DigiCert SHA256 RSA4096 Timestamp Responder 2026 1
-  cert TSA     : DigiCert Trusted G4 TimeStamping RSA4096 SHA256 2025 CA1
-  cert TSA     : DigiCert Trusted Root G4
+=== Firma #1 (campo Signature1) tipo=/Sig ===
+Firmante          : NOMBRE APELLIDOS - 00000000X
+Hora declarada    : 2026-10-02 23:43:58+02:00 (no verificable por si sola)
+Sello de tiempo   : TSA TSA1 ACCV 2016 ...
+COMPROBACIONES:
+  Integridad (hash + firma)....... COMPROBADA: OK
+  Cadena de confianza............. COMPROBADA: OK (ancla: ...)
+  Revocacion del firmante......... COMPROBADA (online): no consta revocacion
+  Sello de tiempo................. COMPROBADA: OK; TSA: TSA1 ACCV 2016 ...
+    Revocacion de la TSA.......... COMPROBADA (online): no consta revocacion
+  Cobertura / modificaciones...... COMPROBADA: ENTIRE_REVISION + LTA_UPDATES
+  Cualificacion eIDAS............. NO COMPROBADA (requiere TSL eIDAS)
+RESUMEN: firma OK; sello OK; revocacion OK (online)
 ```
+
+Códigos de salida: `0` todo correcto; `1` firma no íntegra/válida; `2` certificado
+**revocado**; `3` `--revocation hard` sin poder determinar el estado.
 
 > Nota: sin `--tsa`/`--lt`/`--lta` las firmas son **PAdES B-B**; con `--tsa` son
-> **B-T**. Para validez a largo plazo usa `--lt` (B-LT) o `--lta` (B-LTA), que
-> embeben la información de revocación en el DSS.
+> **B-T**. Para validez a largo plazo y poder comprobar la revocación **offline**
+> usa `--lt` (B-LT) o `--lta` (B-LTA), que embeben la información en el DSS.
 
 ## Archivos ignorados por git
 
 El repositorio no versiona datos sensibles ni artefactos generados: ver
-`.gitignore` (`.p12`, PDFs firmados, `__pycache__/`, `.vscode/`).
+`.gitignore` (`.p12`, `*.pdf`, `__pycache__/`, `.vscode/`, `.mypy_cache/`).
