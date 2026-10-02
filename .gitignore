@@ -1,0 +1,4 @@
+*.p12
+__pycache__/
+.vscode/
+*_firmado.pdf
