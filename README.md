@@ -80,11 +80,20 @@ Firma invisible (oculta):
 python firmar.py --p12 mi_certificado.p12 --invisible
 ```
 
-Con sellado de tiempo:
+Con sellado de tiempo (TSA):
 
 ```bash
-python firmar.py --p12 mi_certificado.p12 --tsa https://timestamp.digicert.com
+python firmar.py --p12 mi_certificado.p12 --tsa http://timestamp.digicert.com
 ```
+
+> Usa `http://timestamp.digicert.com`. El endpoint RFC3161 de DigiCert es HTTP;
+> si tu red bloquea el puerto 443/HTTPS hacia ese host verás un *timeout*. Otros
+> servidores gratuitos: `http://timestamp.globalsign.com/tsa/r6advanced1`.
+>
+> El sello de tiempo **no cambia lo que ves en visores básicos** como Okular:
+> allí solo aparece la *hora declarada* por quien firma. La TSA añade un token
+> RFC3161 firmado por ella (atributo CMS sin firmar + su certificado), que es lo
+> que da autoridad a la fecha/hora. Para verlo usa `verificar.py` o Adobe Acrobat.
 
 ## Múltiples firmas
 
@@ -113,9 +122,50 @@ python firmar.py --p12 b.p12 --in paso1.pdf       --out paso2.pdf
 
 ## Verificar una firma
 
+Inspección rápida con Poppler:
+
 ```bash
 pdfsig presentacion_firmado.pdf
 ```
+
+> `pdfsig` y visores como Okular muestran la **hora declarada** (`/M`), no el
+> sello RFC3161 de la TSA.
+
+Inspección detallada (firmante, hora declarada, **hora real de la TSA**,
+política, cadena de la TSA y si hay revocación embebida):
+
+```bash
+python verificar.py presentacion_firmado.pdf
+```
+
+Validación criptográfica (integridad, validez, confianza y token TSA; puede
+requerir red):
+
+```bash
+python verificar.py presentacion_firmado.pdf --validate
+```
+
+Salida de ejemplo:
+
+```
+DSS (revocacion embebida): no hay
+
+=== Firma #1 ===
+campo          : Signature1
+firmante       : NOMBRE APELLIDOS - 00000000X
+hora declarada : 2026-10-02 21:59:31+02:00  (no verificable por si sola)
+SELLO DE TIEMPO TSA (RFC3161):
+  hora TSA     : 2026-10-02 19:59:31+00:00
+  politica     : 2.16.840.1.114412.7.1
+  cert TSA     : DigiCert SHA256 RSA4096 Timestamp Responder 2026 1
+  cert TSA     : DigiCert Trusted G4 TimeStamping RSA4096 SHA256 2025 CA1
+  cert TSA     : DigiCert Trusted Root G4
+```
+
+> Nota: las firmas de este script son **PAdES B-B / B-T** (con `--tsa`). El sello
+> de tiempo acredita la fecha, pero la información de revocación (OCSP/CRL) no se
+> embebe; para validez a largo plazo (PAdES-LT/LTA) haría falta un perfil
+> adicional.
 
 ## Archivos ignorados por git
 
