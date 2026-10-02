@@ -1,4 +1,5 @@
 *.p12
 __pycache__/
 .vscode/
+.mypy_cache/
 *_firmado.pdf

@@ -8,6 +8,9 @@ Por defecto crea una firma PAdES VISIBLE en la pagina 1, abajo a la derecha.
 Soporta multi-firma: si el PDF ya tiene firmas, usa/reutiliza un campo libre o
 crea uno nuevo (Signature2, Signature3, ...) y desplaza el sello para no
 solaparlo. Usa --invisible para una firma sin sello visible.
+
+Perfiles PAdES:
+  (por defecto) B-B, con --tsa B-T, con --lt B-LT, con --lta B-LTA.
 """
 import argparse
 import getpass
@@ -24,11 +27,11 @@ from pyhanko.sign.fields import (
     SigSeedSubFilter,
     enumerate_sig_fields,
 )
-from pyhanko.sign.general import SigningError
+from pyhanko.sign.general import SigningError, load_cert_from_pemder
 from pyhanko.sign.signers import PdfSignatureMetadata
 from pyhanko.sign.signers.pdf_signer import PdfSigner
 from pyhanko.sign.timestamps import HTTPTimeStamper
-from pyhanko.sign.validation import read_certification_data
+from pyhanko.sign.validation import ValidationContext, read_certification_data
 
 DEFAULT_BOX = (650, 30, 940, 120)
 GAP = 10
@@ -110,6 +113,13 @@ def main() -> int:
     ap.add_argument("--location", default="", help="ubicacion")
     ap.add_argument("--tsa", default=None,
                     help="URL de autoridad de sellado de tiempo (opcional)")
+    ap.add_argument("--lt", action="store_true",
+                    help="PAdES B-LT: embeber informacion de revocacion (DSS)")
+    ap.add_argument("--lta", action="store_true",
+                    help="PAdES B-LTA: --lt + sellado de tiempo del documento "
+                         "(requiere --tsa)")
+    ap.add_argument("--trust-pem", action="append", default=[], metavar="FILE",
+                    help="certificado PEM/DER extra para confiar (repetible)")
     ap.add_argument("--invisible", action="store_true",
                     help="no dibujar sello visible")
     ap.add_argument("--page", type=int, default=1,
@@ -117,6 +127,11 @@ def main() -> int:
     ap.add_argument("--box", type=parse_box, default=DEFAULT_BOX,
                     help="recuadro x1,y1,x2,y2 en puntos (por defecto 650,30,940,120)")
     args = ap.parse_args()
+
+    if args.lta and not args.tsa:
+        print("ERROR: --lta requiere --tsa (hace falta una TSA para el sello "
+              "de tiempo del documento).", file=sys.stderr)
+        return 6
 
     with open(args.entrada, "rb") as f:
         data = f.read()
@@ -166,11 +181,22 @@ def main() -> int:
         print("ERROR: no se pudo cargar el .p12 (contrasena incorrecta?).", file=sys.stderr)
         return 2
 
+    vc = None
+    if args.lt or args.lta:
+        extra_roots = [load_cert_from_pemder(p) for p in args.trust_pem] or None
+        vc = ValidationContext(
+            allow_fetching=True,
+            extra_trust_roots=extra_roots,
+        )
+
     meta = PdfSignatureMetadata(
         field_name=field_name,
         reason=args.reason,
         location=args.location or None,
         subfilter=SigSeedSubFilter.PADES,
+        embed_validation_info=(args.lt or args.lta),
+        use_pades_lta=args.lta,
+        validation_context=vc,
     )
 
     spec = None
@@ -187,11 +213,20 @@ def main() -> int:
     pdf_signer = PdfSigner(meta, signer, timestamper=timestamper, new_field_spec=spec)
 
     writer = IncrementalPdfFileWriter(io.BytesIO(data))
+    tmp_out = args.salida + ".part"
     try:
-        with open(args.salida, "wb") as out:
+        with open(tmp_out, "wb") as out:
             pdf_signer.sign_pdf(writer, output=out)
-    except SigningError as e:
-        print(f"ERROR al firmar: {e}", file=sys.stderr)
+        os.replace(tmp_out, args.salida)
+    except Exception as e:
+        try:
+            os.remove(tmp_out)
+        except OSError:
+            pass
+        if isinstance(e, SigningError):
+            print(f"ERROR al firmar: {e}", file=sys.stderr)
+        else:
+            print(f"ERROR al firmar ({type(e).__name__}): {e}", file=sys.stderr)
         return 5
 
     print("Firmado correctamente:", args.salida)

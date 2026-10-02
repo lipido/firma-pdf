@@ -97,19 +97,25 @@ def inspect(path: str, validate: bool) -> int:
             print("firmante       : ?")
 
         si = s.signer_info
-        claimed = _signing_time_attr(si["signed_attrs"]) or s.self_reported_timestamp
-        print("hora declarada :", claimed, " (no verificable por si sola)")
-
-        ts = _extract_timestamp(si["unsigned_attrs"])
-        if ts:
-            print("SELLO DE TIEMPO TSA (RFC3161):")
-            print("  hora TSA     :", ts["gen_time"])
-            print("  politica     :", ts["policy"])
-            print("  serie        :", ts["serial"])
-            for cert in ts["certs"]:
-                print("  cert TSA     :", _cn(cert))
+        is_doc_ts = getattr(s, "sig_object_type", None) == "/DocTimeStamp"
+        if is_doc_ts:
+            print("hora TSA       :", s.self_reported_timestamp,
+                  " (sello de tiempo del documento)")
+            print("SELLO DE TIEMPO DEL DOCUMENTO (DocTimeStamp, RFC3161)")
         else:
-            print("SELLO DE TIEMPO TSA: no hay (firma sin --tsa)")
+            claimed = _signing_time_attr(si["signed_attrs"]) or s.self_reported_timestamp
+            print("hora declarada :", claimed, " (no verificable por si sola)")
+
+            ts = _extract_timestamp(si["unsigned_attrs"])
+            if ts:
+                print("SELLO DE TIEMPO TSA (RFC3161):")
+                print("  hora TSA     :", ts["gen_time"])
+                print("  politica     :", ts["policy"])
+                print("  serie        :", ts["serial"])
+                for cert in ts["certs"]:
+                    print("  cert TSA     :", _cn(cert))
+            else:
+                print("SELLO DE TIEMPO TSA: no hay (firma sin --tsa)")
 
         if validate:
             from pyhanko.sign.validation import validate_pdf_signature

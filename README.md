@@ -62,6 +62,9 @@ P12_PASS='mi-contrasena' python firmar.py --p12 mi_certificado.p12
 | `--reason` | Motivo de la firma | `Firma del documento` |
 | `--location` | Ubicación de la firma | vacío |
 | `--tsa` | URL de autoridad de sellado de tiempo (TSA) | sin sello de tiempo |
+| `--lt` | PAdES B-LT: embeber info de revocación (DSS) | desactivado |
+| `--lta` | PAdES B-LTA: `--lt` + sello de tiempo del documento (requiere `--tsa`) | desactivado |
+| `--trust-pem` | Certificado PEM/DER extra para confiar (repetible) | — |
 | `--invisible` | No dibujar sello visible | sello visible |
 | `--page` | Página del sello (1-based) | `1` |
 | `--box` | Recuadro `x1,y1,x2,y2` en puntos | `650,30,940,120` |
@@ -94,6 +97,27 @@ python firmar.py --p12 mi_certificado.p12 --tsa http://timestamp.digicert.com
 > allí solo aparece la *hora declarada* por quien firma. La TSA añade un token
 > RFC3161 firmado por ella (atributo CMS sin firmar + su certificado), que es lo
 > que da autoridad a la fecha/hora. Para verlo usa `verificar.py` o Adobe Acrobat.
+
+## Perfiles PAdES (validez a largo plazo)
+
+| Perfil | Cómo | Qué aporta |
+| --- | --- | --- |
+| B-B | por defecto | firma básica |
+| B-T | `--tsa URL` | sello de tiempo de la firma (RFC3161) |
+| B-LT | `--lt --tsa URL` | + información de revocación (OCSP/CRL) en el DSS |
+| B-LTA | `--lta --tsa URL` | + sello de tiempo del documento (*DocTimeStamp*) |
+
+`--lt` y `--lta` descargan OCSP/CRL de la cadena del firmante (y de la TSA) y las
+incrustan en el DSS, por lo que **requieren red**. `--lta` añade además un
+*document timestamp*; es lo que Adobe muestra como "LTV habilitado".
+
+```bash
+python firmar.py --p12 mi_certificado.p12 --out firmado_lta.pdf \
+  --lta --tsa http://timestamp.digicert.com
+```
+
+> `--trust-pem cacert.pem` añade anclas de confianza extra (útil, por ejemplo,
+> para probar con certificados propios).
 
 ## Múltiples firmas
 
@@ -162,10 +186,9 @@ SELLO DE TIEMPO TSA (RFC3161):
   cert TSA     : DigiCert Trusted Root G4
 ```
 
-> Nota: las firmas de este script son **PAdES B-B / B-T** (con `--tsa`). El sello
-> de tiempo acredita la fecha, pero la información de revocación (OCSP/CRL) no se
-> embebe; para validez a largo plazo (PAdES-LT/LTA) haría falta un perfil
-> adicional.
+> Nota: sin `--tsa`/`--lt`/`--lta` las firmas son **PAdES B-B**; con `--tsa` son
+> **B-T**. Para validez a largo plazo usa `--lt` (B-LT) o `--lta` (B-LTA), que
+> embeben la información de revocación en el DSS.
 
 ## Archivos ignorados por git
 
