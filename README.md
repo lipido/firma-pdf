@@ -86,12 +86,21 @@ python firmar.py --p12 mi_certificado.p12 --invisible
 Con sellado de tiempo (TSA):
 
 ```bash
-python firmar.py --p12 mi_certificado.p12 --tsa http://timestamp.digicert.com
+python firmar.py --p12 mi_certificado.p12 --tsa http://tss.accv.es:8318/tsa
 ```
 
-> Usa `http://timestamp.digicert.com`. El endpoint RFC3161 de DigiCert es HTTP;
-> si tu red bloquea el puerto 443/HTTPS hacia ese host verás un *timeout*. Otros
-> servidores gratuitos: `http://timestamp.globalsign.com/tsa/r6advanced1`.
+> **TSA cualificada (recomendado en España/EU).** Si el documento va a
+> validarse ante la administración, o el validador exige un sello *cualificado*
+> (eIDAS), usa una TSA de la Lista de Confianza (TSL). Verificada y sin
+> autenticación:
+>
+> - **ACCV** (Agencia de Tecnología y Certificación Electrónica, Generalitat
+>   Valenciana): `http://tss.accv.es:8318/tsa`
+>
+> Otras TSAs (públicas, **no** cualificadas): `http://timestamp.digicert.com`,
+> `http://timestamp.globalsign.com/tsa/r6advanced1`,
+> `http://timestamp.sectigo.com`. El endpoint de DigiCert es HTTP; si tu red
+> bloquea el puerto 443/HTTPS hacia ese host verás un *timeout*.
 >
 > El sello de tiempo **no cambia lo que ves en visores básicos** como Okular:
 > allí solo aparece la *hora declarada* por quien firma. La TSA añade un token
@@ -113,7 +122,7 @@ incrustan en el DSS, por lo que **requieren red**. `--lta` añade además un
 
 ```bash
 python firmar.py --p12 mi_certificado.p12 --out firmado_lta.pdf \
-  --lta --tsa http://timestamp.digicert.com
+  --lta --tsa http://tss.accv.es:8318/tsa
 ```
 
 > `--trust-pem cacert.pem` añade anclas de confianza extra (útil, por ejemplo,
