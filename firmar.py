@@ -17,6 +17,7 @@ import getpass
 import io
 import os
 import sys
+from dataclasses import replace
 
 from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.pdf_utils.reader import PdfFileReader
@@ -29,6 +30,7 @@ from pyhanko.sign.fields import (
 )
 from pyhanko.sign.general import SigningError, load_cert_from_pemder
 from pyhanko.sign.signers import PdfSignatureMetadata
+from pyhanko.sign.signers.constants import DEFAULT_SIGNING_STAMP_STYLE
 from pyhanko.sign.signers.pdf_signer import PdfSigner
 from pyhanko.sign.timestamps import HTTPTimeStamper
 from pyhanko.sign.validation import ValidationContext, read_certification_data
@@ -126,12 +128,27 @@ def main() -> int:
                     help="pagina del sello visible (1-based, por defecto 1)")
     ap.add_argument("--box", type=parse_box, default=DEFAULT_BOX,
                     help="recuadro x1,y1,x2,y2 en puntos (por defecto 650,30,940,120)")
+    ap.add_argument("--stamp-image", default=None, metavar="FILE",
+                    help="imagen PNG/JPG de fondo del sello visible")
+    ap.add_argument("--stamp-no-text", action="store_true",
+                    help="sello solo con la imagen (sin firmante/fecha)")
+    ap.add_argument("--stamp-no-border", action="store_true",
+                    help="quitar el borde del sello")
+    ap.add_argument("--stamp-opacity", type=float, default=None, metavar="0-1",
+                    help="opacidad del fondo del sello (por defecto 1.0 con imagen)")
     args = ap.parse_args()
 
     if args.lta and not args.tsa:
         print("ERROR: --lta requiere --tsa (hace falta una TSA para el sello "
               "de tiempo del documento).", file=sys.stderr)
         return 6
+    if args.stamp_no_text and not args.stamp_image:
+        print("ERROR: --stamp-no-text requiere --stamp-image.",
+              file=sys.stderr)
+        return 7
+    if args.stamp_opacity is not None and not 0.0 <= args.stamp_opacity <= 1.0:
+        print("ERROR: --stamp-opacity debe estar entre 0 y 1.", file=sys.stderr)
+        return 7
 
     with open(args.entrada, "rb") as f:
         data = f.read()
@@ -209,8 +226,38 @@ def main() -> int:
             box=box,
         )
 
+    stamp_style = None
+    if not args.invisible:
+        if args.stamp_image:
+            try:
+                from pyhanko.pdf_utils.images import PdfImage
+                from pyhanko.stamp import StaticStampStyle, TextStampStyle
+            except ImportError:
+                print('ERROR: --stamp-image requiere Pillow; instala con '
+                      'pip install "pyhanko[image-support]"', file=sys.stderr)
+                return 8
+            try:
+                bg = PdfImage(args.stamp_image)
+            except Exception as e:
+                print(f"ERROR: no se pudo cargar la imagen "
+                      f"{args.stamp_image}: {e}", file=sys.stderr)
+                return 8
+            bw = 0 if args.stamp_no_border else 3
+            opacity = args.stamp_opacity if args.stamp_opacity is not None else 1.0
+            cls = StaticStampStyle if args.stamp_no_text else TextStampStyle
+            stamp_style = cls(background=bg, border_width=bw,
+                              background_opacity=opacity)
+        elif args.stamp_no_border or args.stamp_opacity is not None:
+            kwargs = {}
+            if args.stamp_no_border:
+                kwargs["border_width"] = 0
+            if args.stamp_opacity is not None:
+                kwargs["background_opacity"] = args.stamp_opacity
+            stamp_style = replace(DEFAULT_SIGNING_STAMP_STYLE, **kwargs)
+
     timestamper = HTTPTimeStamper(args.tsa) if args.tsa else None
-    pdf_signer = PdfSigner(meta, signer, timestamper=timestamper, new_field_spec=spec)
+    pdf_signer = PdfSigner(meta, signer, timestamper=timestamper,
+                           new_field_spec=spec, stamp_style=stamp_style)
 
     writer = IncrementalPdfFileWriter(io.BytesIO(data))
     tmp_out = args.salida + ".part"

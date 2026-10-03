@@ -24,11 +24,13 @@ conda activate firma-electronica-pdf
 ```bash
 conda create -y -n firma-electronica-pdf python=3.12
 conda activate firma-electronica-pdf
-pip install "pyhanko[opentype]"
+pip install "pyhanko[opentype,image-support]"
 ```
 
 > El extra `opentype` (aportan `fonttools` y `uharfbuzz`) es necesario para
 > dibujar el texto del sello visible. Sin él solo funciona la firma invisible.
+> El extra `image-support` (aporta `Pillow`) es necesario para usar una **imagen
+> propia** como sello (`--stamp-image`).
 
 ## Uso
 
@@ -68,6 +70,33 @@ P12_PASS='mi-contrasena' python firmar.py --p12 mi_certificado.p12
 | `--invisible` | No dibujar sello visible | sello visible |
 | `--page` | Página del sello (1-based) | `1` |
 | `--box` | Recuadro `x1,y1,x2,y2` en puntos | `650,30,940,120` |
+| `--stamp-image` | Imagen PNG/JPG como fondo del sello (requiere `image-support`) | — |
+| `--stamp-no-text` | Sello solo con la imagen (sin firmante/fecha) | con texto |
+| `--stamp-no-border` | Quitar el borde del sello | con borde |
+| `--stamp-opacity` | Opacidad del fondo del sello (`0`–`1`) | `1.0` con imagen |
+
+### Sello visible personalizado
+
+El sello visible por defecto usa un icono vectorial que trae pyHanko (un "sello"
+morado). Puedes usar tu propia **imagen**:
+
+```bash
+# Imagen + texto (firmante/fecha) con borde
+python firmar.py --p12 mi_certificado.p12 --stamp-image sello.png
+
+# Solo la imagen, sin texto ni borde
+python firmar.py --p12 mi_certificado.p12 --stamp-image sello.png \
+  --stamp-no-text --stamp-no-border
+
+# Atenuar la imagen (se multiplica por el alfa del PNG)
+python firmar.py --p12 mi_certificado.p12 --stamp-image sello.png \
+  --stamp-opacity 0.3
+```
+
+- Se aceptan **PNG/JPG**. Si el PNG tiene **canal alfa**, se respeta (se incrusta
+  como máscara `SMask`); `--stamp-opacity` se aplica **encima** de ese alfa.
+- La imagen se escala/centra dentro del recuadro `--box`.
+- Requiere el extra `image-support` (Pillow).
 
 ### Ejemplos
 
