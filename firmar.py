@@ -132,6 +132,8 @@ def main() -> int:
                     help="imagen PNG/JPG de fondo del sello visible")
     ap.add_argument("--stamp-no-text", action="store_true",
                     help="sello solo con la imagen (sin firmante/fecha)")
+    ap.add_argument("--stamp-text", default=None, metavar="PLANTILLA",
+                    help="plantilla de texto del sello (params: signer, ts)")
     ap.add_argument("--stamp-no-border", action="store_true",
                     help="quitar el borde del sello")
     ap.add_argument("--stamp-opacity", type=float, default=None, metavar="0-1",
@@ -144,6 +146,10 @@ def main() -> int:
         return 6
     if args.stamp_no_text and not args.stamp_image:
         print("ERROR: --stamp-no-text requiere --stamp-image.",
+              file=sys.stderr)
+        return 7
+    if args.stamp_no_text and args.stamp_text is not None:
+        print("ERROR: --stamp-text no tiene sentido con --stamp-no-text.",
               file=sys.stderr)
         return 7
     if args.stamp_opacity is not None and not 0.0 <= args.stamp_opacity <= 1.0:
@@ -228,10 +234,11 @@ def main() -> int:
 
     stamp_style = None
     if not args.invisible:
+        bg = None
         if args.stamp_image:
             try:
                 from pyhanko.pdf_utils.images import PdfImage
-                from pyhanko.stamp import StaticStampStyle, TextStampStyle
+                from pyhanko.stamp import StaticStampStyle
             except ImportError:
                 print('ERROR: --stamp-image requiere Pillow; instala con '
                       'pip install "pyhanko[image-support]"', file=sys.stderr)
@@ -242,18 +249,31 @@ def main() -> int:
                 print(f"ERROR: no se pudo cargar la imagen "
                       f"{args.stamp_image}: {e}", file=sys.stderr)
                 return 8
-            bw = 0 if args.stamp_no_border else 3
-            opacity = args.stamp_opacity if args.stamp_opacity is not None else 1.0
-            cls = StaticStampStyle if args.stamp_no_text else TextStampStyle
-            stamp_style = cls(background=bg, border_width=bw,
-                              background_opacity=opacity)
-        elif args.stamp_no_border or args.stamp_opacity is not None:
+
+        opacity = args.stamp_opacity
+        if args.stamp_no_text:
+            if opacity is None:
+                opacity = 1.0
+            stamp_style = StaticStampStyle(
+                background=bg,
+                border_width=0 if args.stamp_no_border else 3,
+                background_opacity=opacity,
+            )
+        else:
             kwargs = {}
+            if bg is not None:
+                kwargs["background"] = bg
+                kwargs["background_opacity"] = (
+                    opacity if opacity is not None else 1.0
+                )
+            elif opacity is not None:
+                kwargs["background_opacity"] = opacity
             if args.stamp_no_border:
                 kwargs["border_width"] = 0
-            if args.stamp_opacity is not None:
-                kwargs["background_opacity"] = args.stamp_opacity
-            stamp_style = replace(DEFAULT_SIGNING_STAMP_STYLE, **kwargs)
+            if args.stamp_text is not None:
+                kwargs["stamp_text"] = args.stamp_text
+            if kwargs:
+                stamp_style = replace(DEFAULT_SIGNING_STAMP_STYLE, **kwargs)
 
     timestamper = HTTPTimeStamper(args.tsa) if args.tsa else None
     pdf_signer = PdfSigner(meta, signer, timestamper=timestamper,

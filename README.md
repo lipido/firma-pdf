@@ -72,13 +72,14 @@ P12_PASS='mi-contrasena' python firmar.py --p12 mi_certificado.p12
 | `--box` | Recuadro `x1,y1,x2,y2` en puntos | `650,30,940,120` |
 | `--stamp-image` | Imagen PNG/JPG como fondo del sello (requiere `image-support`) | — |
 | `--stamp-no-text` | Sello solo con la imagen (sin firmante/fecha) | con texto |
+| `--stamp-text` | Plantilla de texto del sello (params: `signer`, `ts`) | plantilla por defecto |
 | `--stamp-no-border` | Quitar el borde del sello | con borde |
 | `--stamp-opacity` | Opacidad del fondo del sello (`0`–`1`) | `1.0` con imagen |
 
 ### Sello visible personalizado
 
 El sello visible por defecto usa un icono vectorial que trae pyHanko (un "sello"
-morado). Puedes usar tu propia **imagen**:
+morado). Puedes usar tu propia **imagen** y/o personalizar el **texto**:
 
 ```bash
 # Imagen + texto (firmante/fecha) con borde
@@ -91,12 +92,18 @@ python firmar.py --p12 mi_certificado.p12 --stamp-image sello.png \
 # Atenuar la imagen (se multiplica por el alfa del PNG)
 python firmar.py --p12 mi_certificado.p12 --stamp-image sello.png \
   --stamp-opacity 0.3
+
+# Texto personalizado (funciona también sin imagen)
+python firmar.py --p12 mi_certificado.p12 --stamp-image sello.png \
+  --stamp-text "Firmado por %(signer)s el %(ts)s"
 ```
 
 - Se aceptan **PNG/JPG**. Si el PNG tiene **canal alfa**, se respeta (se incrusta
   como máscara `SMask`); `--stamp-opacity` se aplica **encima** de ese alfa.
 - La imagen se escala/centra dentro del recuadro `--box`.
-- Requiere el extra `image-support` (Pillow).
+- `--stamp-text` usa formato printf con los parámetros `%(signer)s` (firmante) y
+  `%(ts)s` (fecha ya formateada); un `%` literal se escribe `%%`.
+- Requiere el extra `image-support` (Pillow) para `--stamp-image`.
 
 ### Ejemplos
 
