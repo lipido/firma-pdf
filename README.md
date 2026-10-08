@@ -63,13 +63,13 @@ P12_PASS='mi-contrasena' python firmar.py --p12 mi_certificado.p12
 | `--field` | Nombre del campo de firma | automático |
 | `--reason` | Motivo de la firma | `Firma del documento` |
 | `--location` | Ubicación de la firma | vacío |
-| `--tsa` | URL de autoridad de sellado de tiempo (TSA) | sin sello de tiempo |
+| `--tsa` | Sello de tiempo; URL de la TSA. `--tsa` sin URL usa ACCV (`http://tss.accv.es:8318/tsa`) | sin sello de tiempo |
 | `--lt` | PAdES B-LT: embeber info de revocación (DSS) | desactivado |
 | `--lta` | PAdES B-LTA: `--lt` + sello de tiempo del documento (requiere `--tsa`) | desactivado |
 | `--trust-pem` | Certificado PEM/DER extra para confiar (repetible) | — |
 | `--invisible` | No dibujar sello visible | sello visible |
 | `--page` | Página del sello (1-based) | `1` |
-| `--box` | Recuadro `x1,y1,x2,y2` en puntos | `650,30,940,120` |
+| `--box` | Recuadro `x1,y1,x2,y2`: cada valor en puntos o fracción `0`–`1` de la dimensión de la página | abajo-derecha (calculado según la página) |
 | `--stamp-image` | Imagen PNG/JPG como fondo del sello (requiere `image-support`) | — |
 | `--stamp-no-text` | Sello solo con la imagen (sin firmante/fecha) | con texto |
 | `--stamp-text` | Plantilla de texto del sello (params: `signer`, `ts`) | plantilla por defecto |
@@ -105,6 +105,28 @@ python firmar.py --p12 mi_certificado.p12 --stamp-image sello.png \
   `%(ts)s` (fecha ya formateada); un `%` literal se escribe `%%`.
 - Requiere el extra `image-support` (Pillow) para `--stamp-image`.
 
+### Recuadro del sello (`--box`)
+
+Por defecto el sello se coloca **abajo a la derecha**, con un tamaño y margen
+fijos que se encogen si la página es pequeña, de modo que siempre cabe.
+
+`--box x1,y1,x2,y2` permite fijarlo. **Cada coordenada** puede ser:
+
+- un valor en **puntos** (p. ej. `30`), o
+- una **fracción de `0` a `1`** de la dimensión de la página: `x1`/`x2` sobre el
+  **ancho** y `y1`/`y2` sobre el **alto** (p. ej. `0.75` = 75%).
+
+Se pueden mezclar ambos estilos por coordenada:
+
+```bash
+# Sello que ocupa del 50% al 90% del ancho y de 20 a 110 pt de alto
+python firmar.py --p12 mi_certificado.p12 --box 0.5,20,0.9,110
+```
+
+Si el recuadro resultante (incluido el desplazamiento por multi-firma) se sale de
+la página, la aplicación muestra un **aviso** por `stderr` y continúa; la firma
+seguirá siendo válida aunque el sello pueda no verse entero.
+
 ### Ejemplos
 
 Firma visible en la última página, abajo a la izquierda:
@@ -119,9 +141,13 @@ Firma invisible (oculta):
 python firmar.py --p12 mi_certificado.p12 --invisible
 ```
 
-Con sellado de tiempo (TSA):
+Con sellado de tiempo (TSA). `--tsa` sin URL usa ACCV por defecto:
 
 ```bash
+# ACCV (atajo; equivale a --tsa http://tss.accv.es:8318/tsa)
+python firmar.py --p12 mi_certificado.p12 --tsa
+
+# TSA explícita
 python firmar.py --p12 mi_certificado.p12 --tsa http://tss.accv.es:8318/tsa
 ```
 
