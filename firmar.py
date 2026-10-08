@@ -6,10 +6,17 @@ variable de entorno P12_PASS. Nunca se guarda ni se muestra.
 
 Por defecto crea una firma PAdES VISIBLE en la pagina 1, abajo a la derecha. El
 recuadro por defecto se calcula a partir del tamano real de la pagina, de modo
-que siempre cabe. Con --box puedes fijarlo: cada coordenada admite un valor en
-puntos (p. ej. 30) o una fraccion de 0 a 1 de la dimension de la pagina (p. ej.
-0.75 = 75% del ancho para x, del alto para y). Si el recuadro resultante se sale
-de la pagina, se avisa por stderr pero se continua.
+que siempre cabe.
+
+Con --box puedes fijarlo como dos esquinas opuestas (x1,y1) y (x2,y2), en
+cualquier orden: se normalizan a la esquina inferior izquierda y la superior
+derecha. El origen (0,0) esta en la esquina inferior izquierda de la pagina (x
+crece a la derecha, y hacia arriba). Cada coordenada admite un valor en puntos
+(p. ej. 30) o una fraccion de 0 a 1 de la dimension de la pagina (p. ej. 0.75 =
+75% del ancho para x, del alto para y).
+
+Si el recuadro resultante se sale de la pagina, o si tiene area cero (x1==x2 o
+y1==y2), se avisa por stderr pero se continua.
 
 Soporta multi-firma: si el PDF ya tiene firmas, usa/reutiliza un campo libre o
 crea uno nuevo (Signature2, Signature3, ...) y desplaza el sello para no
@@ -63,12 +70,20 @@ def parse_box(valor: str) -> tuple[float, float, float, float]:
 
 
 def _resolve_box(raw_box, page_w: float, page_h: float):
-    """Convierte cada coordenada: 0<=v<=1 es fraccion de la dimension de pagina."""
+    """Resuelve y normaliza el recuadro.
+
+    Cada coordenada se interpreta como valor en puntos o, si esta entre 0 y 1,
+    como fraccion de la dimension de la pagina (x sobre el ancho, y sobre el
+    alto). Las dos esquinas opuestas se normalizan despues a inferior-izquierda
+    y superior-derecha, por lo que el orden en que se den da igual.
+    """
     dims = (page_w, page_h, page_w, page_h)
-    return tuple(
+    vals = [
         v * dim if 0.0 <= v <= 1.0 else v
         for v, dim in zip(raw_box, dims)
-    )
+    ]
+    x1, y1, x2, y2 = vals
+    return (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
 
 
 def _default_box(page_w: float, page_h: float):
@@ -84,10 +99,10 @@ def _default_box(page_w: float, page_h: float):
 def _box_warnings(box, page_w: float, page_h: float):
     x1, y1, x2, y2 = box
     avisos = []
-    if x1 >= x2 or y1 >= y2:
+    if x1 == x2 or y1 == y2:
         avisos.append(
-            f"el recuadro del sello no tiene dimensiones validas: "
-            f"x1={x1}, y1={y1}, x2={x2}, y2={y2}."
+            f"el recuadro del sello no tiene area (x1={x1}, y1={y1}, "
+            f"x2={x2}, y2={y2}); la firma se creara sin sello visible."
         )
         return avisos
     fuera = x1 < 0 or y1 < 0 or x2 > page_w or y2 > page_h
@@ -183,9 +198,11 @@ def main() -> int:
     ap.add_argument("--page", type=int, default=1,
                     help="pagina del sello visible (1-based, por defecto 1)")
     ap.add_argument("--box", type=parse_box, default=None, metavar="x1,y1,x2,y2",
-                    help="recuadro del sello; cada valor en puntos (p. ej. 30) o "
-                         "fraccion 0-1 de la dimension de la pagina (p. ej. 0.75). "
-                         "Por defecto: abajo a la derecha, calculado segun la pagina")
+                    help="recuadro del sello: dos esquinas opuestas x1,y1,x2,y2 "
+                         "(se normalizan, el orden da igual); cada valor en puntos "
+                         "(p. ej. 30) o fraccion 0-1 de la pagina (p. ej. 0.75). "
+                         "Origen abajo-izquierda. Por defecto: abajo a la derecha, "
+                         "calculado segun la pagina")
     ap.add_argument("--stamp-image", default=None, metavar="FILE",
                     help="imagen PNG/JPG de fondo del sello visible")
     ap.add_argument("--stamp-no-text", action="store_true",

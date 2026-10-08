@@ -69,7 +69,7 @@ P12_PASS='mi-contrasena' python firmar.py --p12 mi_certificado.p12
 | `--trust-pem` | Certificado PEM/DER extra para confiar (repetible) | — |
 | `--invisible` | No dibujar sello visible | sello visible |
 | `--page` | Página del sello (1-based) | `1` |
-| `--box` | Recuadro `x1,y1,x2,y2`: cada valor en puntos o fracción `0`–`1` de la dimensión de la página | abajo-derecha (calculado según la página) |
+| `--box` | Recuadro por dos esquinas opuestas `x1,y1,x2,y2` (se normalizan); cada valor en puntos o fracción `0`–`1` de la página; origen abajo-izquierda | abajo-derecha (calculado según la página) |
 | `--stamp-image` | Imagen PNG/JPG como fondo del sello (requiere `image-support`) | — |
 | `--stamp-no-text` | Sello solo con la imagen (sin firmante/fecha) | con texto |
 | `--stamp-text` | Plantilla de texto del sello (params: `signer`, `ts`) | plantilla por defecto |
@@ -110,22 +110,51 @@ python firmar.py --p12 mi_certificado.p12 --stamp-image sello.png \
 Por defecto el sello se coloca **abajo a la derecha**, con un tamaño y margen
 fijos que se encogen si la página es pequeña, de modo que siempre cabe.
 
-`--box x1,y1,x2,y2` permite fijarlo. **Cada coordenada** puede ser:
+`--box x1,y1,x2,y2` fija el recuadro mediante **dos esquinas opuestas**, **en
+cualquier orden**: si `x1>x2` o `y1>y2`, la herramienta las **normaliza**
+(reordena) para obtener siempre la esquina inferior izquierda y la superior
+derecha.
+
+El origen `(0,0)` está en la esquina **inferior izquierda** de la página: `x`
+crece hacia la **derecha** e `y` hacia **arriba**; las unidades son **puntos**
+(1 pt = 1/72"; A4 ≈ 595×842 pt). El recuadro se mide sobre la página elegida con
+`--page`.
+
+```
+ y↑
+   ┌──────────────────────────────────────┐ (W,H)
+   │                                      │
+   │        ┌──────────────────────┐      │
+   │        │        sello         │→ (x2,y2)  superior derecha
+   │        └──────────────────────┘      │
+   │        (x1,y1)                       │
+   │        ↑ inferior izquierda          │
+   └──────────────────────────────────────┘→ x
+ (0,0)                                (W,0)
+```
+
+**Cada coordenada** puede ser:
 
 - un valor en **puntos** (p. ej. `30`), o
 - una **fracción de `0` a `1`** de la dimensión de la página: `x1`/`x2` sobre el
   **ancho** y `y1`/`y2` sobre el **alto** (p. ej. `0.75` = 75%).
 
-Se pueden mezclar ambos estilos por coordenada:
+Se pueden mezclar ambos estilos por coordenada, y el orden de las esquinas da
+igual (se normalizan):
 
 ```bash
 # Sello que ocupa del 50% al 90% del ancho y de 20 a 110 pt de alto
 python firmar.py --p12 mi_certificado.p12 --box 0.5,20,0.9,110
+
+# Da igual el orden: equivale a la anterior
+python firmar.py --p12 mi_certificado.p12 --box 0.9,110,0.5,20
 ```
 
 Si el recuadro resultante (incluido el desplazamiento por multi-firma) se sale de
 la página, la aplicación muestra un **aviso** por `stderr` y continúa; la firma
-seguirá siendo válida aunque el sello pueda no verse entero.
+seguirá siendo válida aunque el sello pueda no verse entero. Coordenadas con
+**área cero** (`x1==x2` o `y1==y2`) también avisan: producen un sello sin recuadro
+(invisible).
 
 ### Ejemplos
 
